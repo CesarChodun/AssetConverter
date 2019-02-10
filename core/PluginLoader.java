@@ -4,60 +4,58 @@ import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 public class PluginLoader {
 	
-	private static String PATH_TO_CLASS_SEPARATOR = "/#/";
+	public static String PLUGIN_INFO_LOCATION = "info";
+	public static String PLUGIN_INFO_NAME = "PluginInfo";
 	
-	private static HashMap<String, Class<?>> loadedClasses = new HashMap<String, Class<?>>();
+	private HashMap<String, Plugin> plugins = new HashMap<String, Plugin>();
 	
-	/**
-	 * Creates unique name for the class.
-	 * @param file	- File from which the class is obtained.
-	 * @param name	- Path to the class within <b>file</b>.
-	 * @return Unique name for the class.
-	 */
-	private static String getFullName(File file, String name) {
-		return file.toString() + PATH_TO_CLASS_SEPARATOR + name;
+	private static String createKey(Plugin p) {
+		if(p.getName() == null || p.getPath() == null)
+			return null;
+		return p.getPath();
 	}
 	
 	/**
-	 * Loads the plugin class from <b>file</b>.
+	 * Loads the class from <b>file</b>.
 	 * @param file - File to load the class from.
 	 * @param className - Path to the class within the <b>file</b>.
 	 * @return The class obtained from <b>file</b>.
 	 * @throws MalformedURLException
 	 * @throws ClassNotFoundException
 	 */
-	protected static Class<?> loadPluginClass(File file, String className) throws MalformedURLException, ClassNotFoundException {
+	protected static Class<?> loadClass(File file, String className) throws MalformedURLException, ClassNotFoundException {
 		return URLClassLoader.newInstance(new URL[] { file.toURI().toURL() }).loadClass(className);
 	}
 	
-	/**
-	 * Loads the class from <b>file</b>. Also saves it for future use.
-	 * @param file - File to obtain class from.
-	 * @param className - Path to the class within the <b>file</b>.
-	 * @return The class obtained from <b>file</b>.
-	 * @throws MalformedURLException
-	 * @throws ClassNotFoundException
-	 */
-	private static Class<?> loadClassFromFile(File file, String className) throws MalformedURLException, ClassNotFoundException{
-		Class<?> out = loadPluginClass(file, className);
-		
-		loadedClasses.put(getFullName(file, className), out);
-		return out;
+	protected String addPlugin(Plugin p) {
+		String k = createKey(p);
+		plugins.put(k, p);
+		return k;
+	}
+	
+	protected Plugin getPlugin(String path) {
+		return plugins.get(path);
+	}
+	
+	protected boolean containsPlugin(String path) {
+		return plugins.containsKey(path);
 	}
 	
 	/**
-	 * Jar file containing the plugin classes.
+	 * Jar file which contains plugin classes.
 	 */
 	protected File source = null;
 	
 	/**
 	 * Creates <code>PluginLoader</code> instance, 
 	 * that will read classes from <b>source</b> file.
-	 * @param source - Jar file that contains the plugin classes.
+	 * @param source - Jar file that contains the plugin classes
 	 */
 	public PluginLoader(File source) {
 		this.source = source;
@@ -70,8 +68,8 @@ public class PluginLoader {
 	 * @return <b>True</b> if the class have been loaded 
 	 * 	and <b>false</b> otherwise.
 	 */
-	public boolean isClassLoaded(String name) {
-		return loadedClasses.containsKey(getFullName(source, name));
+	public boolean isPluginLoaded(String classPath) {
+		return containsPlugin(classPath);
 	}
 	
 	/**
@@ -79,8 +77,8 @@ public class PluginLoader {
 	 * @param name - Path of the class(Within <b>source</b> file).
 	 * @return <b>Class</b> if it have been loaded, and null otherwise.
 	 */
-	public Class<?> getLoadedClass(String name){
-		return loadedClasses.get(getFullName(source, name));
+	public Plugin getLoadedPlugin(String classPath){
+		return getPlugin(classPath);
 	}
 	
 	/**
@@ -90,10 +88,65 @@ public class PluginLoader {
 	 * @return	Class obtained from <b>source</b> file.
 	 * @throws MalformedURLException 
 	 * @throws ClassNotFoundException
+	 * @throws IllegalAccessException 
+	 * @throws InstantiationException 
 	 */
-	public Class<?> loadClass(String name) throws MalformedURLException, ClassNotFoundException{
-		if(isClassLoaded(name))
-			return getLoadedClass(name);
-		return loadClassFromFile(source, name);
+	public Plugin loadPlugin(String classPath) throws MalformedURLException, ClassNotFoundException, InstantiationException, IllegalAccessException{
+		if(isPluginLoaded(classPath))
+			return getLoadedPlugin(classPath);
+		addPlugin((Plugin) loadClass(source, classPath).newInstance());
+		return getPlugin(classPath);
 	}
+	
+	protected void loadPlugins(PluginSet set) {
+		List<String> pluginPaths = set.getPlugins();
+		
+		for(String path : pluginPaths) {
+			try {
+				Plugin p = (Plugin) loadClass(source, path).newInstance();
+
+				if(p.getClass().isAssignableFrom(PluginSet.class))
+					loadPlugins((PluginSet) p);
+				else
+					addPlugin(p);
+			} catch (Exception e) {
+				System.err.println(e.getMessage());
+			}
+			
+		}
+	}
+	
+	/**
+	 * Loads all plugins from the file(assuming file contains file info class)
+	 * @throws InstantiationException
+	 * @throws IllegalAccessException
+	 * @throws MalformedURLException
+	 * @throws ClassNotFoundException
+	 */
+	public void loadPlugins() throws InstantiationException, IllegalAccessException, MalformedURLException, ClassNotFoundException {
+		Plugin p = (Plugin) loadClass(source, PLUGIN_INFO_LOCATION + "." + PLUGIN_INFO_NAME).newInstance();
+		
+		System.out.println(PluginSet.class.isAssignableFrom(p.getClass()));
+		
+		if(PluginSet.class.isAssignableFrom(p.getClass()))
+			loadPlugins((PluginSet) p);
+		else
+			addPlugin((Plugin) p);
+	}
+	
+	/**
+	 * Returns the list of plugins that meets the requirements of the given {@linkplain PluginFilter}
+	 * @param filter - filter that will be applied to the plugins
+	 * @return List of the plugins that meet the requirements.
+	 */
+	public List<Plugin> filterPlugins(PluginFilter filter){
+		List<Plugin> out = new ArrayList<Plugin>();
+		
+		for(Plugin p : plugins.values())
+			if(filter.filter(p.getName(), p.getName(), p.getVersion()))
+				out.add(p);
+		
+		return out;
+	}
+	
 }
