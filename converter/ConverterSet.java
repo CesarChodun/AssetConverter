@@ -4,6 +4,9 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 
+/**
+ *	Data structure containing loaded converters.
+ */
 public class ConverterSet {
 	
 	protected HashMap<String, FileConvertPlugin> converters = new HashMap<String, FileConvertPlugin>();
@@ -12,6 +15,9 @@ public class ConverterSet {
 		
 	}
 	
+	/**
+	 *	Adds a converter to the set.
+	 */
 	public void addConverter(FileConvertPlugin plugin) {
 		List<String> ext = plugin.getInputExtensions();
 		for(String e : ext)
@@ -21,10 +27,7 @@ public class ConverterSet {
 	public void addConverters(File f) {
 		
 		if(f.isFile())
-			addConverter()
-		
-		//TODO: implement this method
-		throw new AssertionError("Not implemented jet!");
+			addConverter(f);
 	}
 	
 	public void skipExtension(String ext) {
