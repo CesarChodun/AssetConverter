@@ -8,14 +8,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class PluginLoader {
+public class PluginLoader<T extends Plugin> {
 	
 	public static String PLUGIN_INFO_LOCATION = "info";
 	public static String PLUGIN_INFO_NAME = "PluginInfo";
 	
-	private HashMap<String, Plugin> plugins = new HashMap<String, Plugin>();
+	private HashMap<String, T> plugins = new HashMap<String, T>();
 	
-	private static String createKey(Plugin p) {
+	private String createKey(T p) {
 		if(p.getName() == null || p.getPath() == null)
 			return null;
 		return p.getPath();
@@ -33,13 +33,13 @@ public class PluginLoader {
 		return URLClassLoader.newInstance(new URL[] { file.toURI().toURL() }).loadClass(className);
 	}
 	
-	protected String addPlugin(Plugin p) {
+	protected String addPlugin(T p) {
 		String k = createKey(p);
 		plugins.put(k, p);
 		return k;
 	}
 	
-	protected Plugin getPlugin(String path) {
+	protected T getPlugin(String path) {
 		return plugins.get(path);
 	}
 	
@@ -77,7 +77,7 @@ public class PluginLoader {
 	 * @param name - Path of the class(Within <b>source</b> file).
 	 * @return <b>Class</b> if it have been loaded, and null otherwise.
 	 */
-	public Plugin getLoadedPlugin(String classPath){
+	public T getLoadedPlugin(String classPath){
 		return getPlugin(classPath);
 	}
 	
@@ -91,10 +91,11 @@ public class PluginLoader {
 	 * @throws IllegalAccessException 
 	 * @throws InstantiationException 
 	 */
-	public Plugin loadPlugin(String classPath) throws MalformedURLException, ClassNotFoundException, InstantiationException, IllegalAccessException{
+	@SuppressWarnings("unchecked")
+	public T loadPlugin(String classPath) throws MalformedURLException, ClassNotFoundException, InstantiationException, IllegalAccessException{
 		if(isPluginLoaded(classPath))
 			return getLoadedPlugin(classPath);
-		addPlugin((Plugin) loadClass(source, classPath).newInstance());
+		addPlugin((T) loadClass(source, classPath).newInstance());
 		return getPlugin(classPath);
 	}
 	
@@ -103,7 +104,8 @@ public class PluginLoader {
 		
 		for(String path : pluginPaths) {
 			try {
-				Plugin p = (Plugin) loadClass(source, path).newInstance();
+				@SuppressWarnings("unchecked")
+				T p = (T) loadClass(source, path).newInstance();
 
 				if(p.getClass().isAssignableFrom(PluginSet.class))
 					loadPlugins((PluginSet) p);
@@ -124,14 +126,15 @@ public class PluginLoader {
 	 * @throws ClassNotFoundException
 	 */
 	public void loadPlugins() throws InstantiationException, IllegalAccessException, MalformedURLException, ClassNotFoundException {
-		Plugin p = (Plugin) loadClass(source, PLUGIN_INFO_LOCATION + "." + PLUGIN_INFO_NAME).newInstance();
+		@SuppressWarnings("unchecked")
+		T p = (T) loadClass(source, PLUGIN_INFO_LOCATION + "." + PLUGIN_INFO_NAME).newInstance();
 		
 		System.out.println(PluginSet.class.isAssignableFrom(p.getClass()));
 		
 		if(PluginSet.class.isAssignableFrom(p.getClass()))
 			loadPlugins((PluginSet) p);
 		else
-			addPlugin((Plugin) p);
+			addPlugin(p);
 	}
 	
 	/**
@@ -139,10 +142,10 @@ public class PluginLoader {
 	 * @param filter - filter that will be applied to the plugins
 	 * @return List of the plugins that meet the requirements.
 	 */
-	public List<Plugin> filterPlugins(PluginFilter filter){
-		List<Plugin> out = new ArrayList<Plugin>();
+	public List<T> filterPlugins(PluginFilter filter){
+		List<T> out = new ArrayList<T>();
 		
-		for(Plugin p : plugins.values())
+		for(T p : plugins.values())
 			if(filter.filter(p.getName(), p.getName(), p.getVersion()))
 				out.add(p);
 		

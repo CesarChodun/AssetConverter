@@ -1,12 +1,8 @@
 package run;
 
 import java.io.File;
-import java.net.MalformedURLException;
 
 import converter.ConverterSet;
-import core.Plugin;
-import core.PluginLoader;
-import core.PluginSet;
 
 public class Main {
 	
